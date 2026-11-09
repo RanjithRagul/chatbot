@@ -1,0 +1,7 @@
+litellm
+requests
+python-dotenv
+pymupdf
+sentence-transformers
+faiss-cpu
+numpy
