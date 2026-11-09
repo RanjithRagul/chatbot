@@ -1,8 +1,8 @@
-
 from chatbot.config import SYSTEM_PROMPT
 from chatbot.model_discovery import discover_models
 from chatbot.llm_client import chat
 from chatbot import llm_client
+from router.router import answer_rag_query, route_query
 
 
 def main() -> None:
@@ -61,6 +61,40 @@ def main() -> None:
                 "role": "user",
                 "content": message,
             })
+
+            destination: str = route_query(
+                query=message,
+                available=available,
+            )
+
+            if destination == "rag":
+
+                try:
+
+                    answer: str = answer_rag_query(
+                        query=message,
+                        available=available,
+                        history=history,
+                    )
+
+                    history.append({
+                        "role": "assistant",
+                        "content": answer,
+                    })
+
+                    print("\n[LOCAL RAG]")
+                    print(answer)
+
+                except Exception as error:
+
+                    history.pop()
+
+                    print(
+                        "\nLocal RAG failed: "
+                        f"{type(error).__name__}: {error}"
+                    )
+
+                continue
 
             if not chat(history, available):
                 history.pop()

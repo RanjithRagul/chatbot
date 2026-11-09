@@ -1,4 +1,3 @@
-
 from typing import Any
 
 from litellm import completion
@@ -14,7 +13,7 @@ from chatbot.config import (
 
 RECENT_MESSAGES: int = 6
 SUMMARIZE_AFTER: int = 8
-SUMMARY_MAX_TOKENS: int = 300
+SUMMARY_MAX_TOKENS: int = 120
 
 conversation_summary: str = ""
 summarized_count: int = 0
@@ -224,3 +223,51 @@ def chat(
     print("\nAll available models failed.")
 
     return False
+
+
+def generate(
+    messages: list[dict[str, str]],
+    available: dict[str, list[str]],
+    max_tokens: int = MAX_TOKENS,
+) -> str:
+
+    for provider in PROVIDERS:
+
+        if provider not in available:
+            continue
+
+        api_key: str | None = API_KEYS[provider]
+
+        if not api_key:
+            continue
+
+        for model_name in available[provider]:
+
+            model: str = f"{provider}/{model_name}"
+
+            try:
+
+                response: Any = completion(
+                    model=model,
+                    messages=messages,
+                    api_key=api_key,
+                    max_tokens=max_tokens,
+                    timeout=REQUEST_TIMEOUT,
+                )
+
+                answer: str = get_text(response)
+
+                print(f"\n[{provider.upper()} | {model_name}]")
+
+                return answer
+
+            except Exception as error:
+
+                print(
+                    f"{model} failed: "
+                    f"{type(error).__name__}"
+                )
+
+                print("Trying next model...")
+
+    raise RuntimeError("All available models failed.")
