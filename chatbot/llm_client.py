@@ -1,3 +1,5 @@
+
+import time
 from typing import Any
 
 from litellm import completion
@@ -9,6 +11,8 @@ from chatbot.config import (
     REQUEST_TIMEOUT,
     SYSTEM_PROMPT,
 )
+
+from log.logger import logger
 
 
 RECENT_MESSAGES: int = 6
@@ -42,6 +46,15 @@ Return only the updated summary.
 """
 
 
+def _safe_error(error: Exception, api_key: str) -> str:
+    message = str(error)
+
+    if api_key:
+        message = message.replace(api_key, "[REDACTED]")
+
+    return f"{type(error).__name__}: {message}"
+
+
 def get_text(response: Any) -> str:
 
     answer: Any = response.choices[0].message.content
@@ -72,27 +85,63 @@ def summarize_conversation(
         for message in messages
     )
 
-    response: Any = completion(
-        model=model,
-        messages=[
-            {
-                "role": "system",
-                "content": SUMMARY_PROMPT,
-            },
-            {
-                "role": "user",
-                "content": (
-                    f"Previous summary:\n{previous_summary}\n\n"
-                    f"New conversation:\n{conversation}"
-                ),
-            },
-        ],
-        api_key=api_key,
-        max_tokens=SUMMARY_MAX_TOKENS,
-        timeout=REQUEST_TIMEOUT,
+    request_messages: list[dict[str, str]] = [
+        {
+            "role": "system",
+            "content": SUMMARY_PROMPT,
+        },
+        {
+            "role": "user",
+            "content": (
+                f"Previous summary:\n{previous_summary}\n\n"
+                f"New conversation:\n{conversation}"
+            ),
+        },
+    ]
+
+    logger.log_event(
+        event="CONVERSATION_SUMMARY_REQUEST",
+        input_data={
+            "model": model,
+            "messages": request_messages,
+        },
     )
 
-    return get_text(response)
+    start_time: float = time.perf_counter()
+
+    try:
+        response: Any = completion(
+            model=model,
+            messages=request_messages,
+            api_key=api_key,
+            max_tokens=SUMMARY_MAX_TOKENS,
+            timeout=REQUEST_TIMEOUT,
+        )
+
+        answer: str = get_text(response)
+
+        duration_ms: float = round(
+            (time.perf_counter() - start_time) * 1000,
+            2,
+        )
+
+        logger.log_event(
+            event="CONVERSATION_SUMMARY_RESPONSE",
+            output_data={
+                "summary": answer,
+                "duration_ms": duration_ms,
+            },
+        )
+
+        return answer
+
+    except Exception as error:
+        logger.log_event(
+            event="CONVERSATION_SUMMARY_FAILED",
+            input_data={"model": model},
+            error=_safe_error(error, api_key),
+        )
+        raise
 
 
 def prepare_context(
@@ -151,6 +200,19 @@ def prepare_context(
 
     api_history.extend(recent_messages)
 
+    logger.log_event(
+        event="CONTEXT_PREPARATION",
+        input_data={
+            "original_messages": len(history),
+            "summarized_messages": summarized_count,
+            "recent_messages": len(recent_messages),
+        },
+        output_data={
+            "api_messages": len(api_history),
+            "summary_available": bool(conversation_summary),
+        },
+    )
+
     return api_history
 
 
@@ -158,6 +220,8 @@ def chat(
     history: list[dict[str, str]],
     available: dict[str, list[str]],
 ) -> bool:
+
+    previous_model: str | None = None
 
     for provider in PROVIDERS:
 
@@ -173,6 +237,13 @@ def chat(
 
             model: str = f"{provider}/{model_name}"
 
+            if previous_model is not None:
+                logger.log_event(
+                    event="PROVIDER_FALLBACK",
+                    input_data=f"previous_model={previous_model}",
+                    output_data=f"next_model={model}",
+                )
+
             try:
 
                 print(f"\nTrying: {model}")
@@ -183,6 +254,17 @@ def chat(
                     api_key=api_key,
                 )
 
+                logger.log_event(
+                    event="AI_API_REQUEST",
+                    input_data={
+                        "model": model,
+                        "messages": api_history,
+                        "max_tokens": MAX_TOKENS,
+                    },
+                )
+
+                start_time: float = time.perf_counter()
+
                 response: Any = completion(
                     model=model,
                     messages=api_history,
@@ -192,6 +274,11 @@ def chat(
                 )
 
                 answer: str = get_text(response)
+
+                duration_ms: float = round(
+                    (time.perf_counter() - start_time) * 1000,
+                    2,
+                )
 
                 history.append({
                     "role": "assistant",
@@ -204,14 +291,20 @@ def chat(
                 print(f"\n[{provider.upper()} | {model_name}]")
                 print(answer)
 
+                logger.log_event(
+                    event="AI_API_RESPONSE",
+                    output_data={
+                        "model": model,
+                        "response": answer,
+                        "duration_ms": duration_ms,
+                    },
+                )
+
                 return True
 
             except Exception as error:
 
-                message: str = str(error).replace(
-                    api_key,
-                    "[REDACTED]",
-                )
+                safe_error: str = _safe_error(error, api_key)
 
                 print(
                     f"{model} failed: "
@@ -219,6 +312,14 @@ def chat(
                 )
 
                 print("Trying next model...")
+
+                logger.log_event(
+                    event="AI_API_FAILED",
+                    input_data={"model": model},
+                    error=safe_error,
+                )
+
+                previous_model = model
 
     print("\nAll available models failed.")
 
@@ -230,6 +331,8 @@ def generate(
     available: dict[str, list[str]],
     max_tokens: int = MAX_TOKENS,
 ) -> str:
+
+    previous_model: str | None = None
 
     for provider in PROVIDERS:
 
@@ -245,7 +348,25 @@ def generate(
 
             model: str = f"{provider}/{model_name}"
 
+            if previous_model is not None:
+                logger.log_event(
+                    event="PROVIDER_FALLBACK",
+                    input_data=f"previous_model={previous_model}",
+                    output_data=f"next_model={model}",
+                )
+
             try:
+
+                logger.log_event(
+                    event="AI_API_REQUEST",
+                    input_data={
+                        "model": model,
+                        "messages": messages,
+                        "max_tokens": max_tokens,
+                    },
+                )
+
+                start_time: float = time.perf_counter()
 
                 response: Any = completion(
                     model=model,
@@ -257,11 +378,27 @@ def generate(
 
                 answer: str = get_text(response)
 
+                duration_ms: float = round(
+                    (time.perf_counter() - start_time) * 1000,
+                    2,
+                )
+
                 print(f"\n[{provider.upper()} | {model_name}]")
+
+                logger.log_event(
+                    event="AI_API_RESPONSE",
+                    output_data={
+                        "model": model,
+                        "response": answer,
+                        "duration_ms": duration_ms,
+                    },
+                )
 
                 return answer
 
             except Exception as error:
+
+                safe_error: str = _safe_error(error, api_key)
 
                 print(
                     f"{model} failed: "
@@ -269,5 +406,19 @@ def generate(
                 )
 
                 print("Trying next model...")
+
+                logger.log_event(
+                    event="AI_API_FAILED",
+                    input_data={"model": model},
+                    error=safe_error,
+                )
+
+                previous_model = model
+
+    logger.log_event(
+        event="ALL_MODELS_FAILED",
+        input_data={"available_providers": available},
+        error="All available models failed",
+    )
 
     raise RuntimeError("All available models failed.")

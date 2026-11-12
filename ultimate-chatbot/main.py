@@ -6,6 +6,8 @@ from typing import Any
 from dotenv import load_dotenv
 from litellm import completion
 
+from log.logger import logger
+
 load_dotenv()
 
 API_KEYS: dict[str, str | None] = {
@@ -54,7 +56,11 @@ MODEL_PRIORITY: dict[str, int] = {
 
 
 def get_models(provider: str, api_key: str) -> list[dict[str, Any]]:
-    headers: dict[str, str] = {"Authorization": f"Bearer {api_key}"}
+
+    headers: dict[str, str] = {
+        "Authorization": f"Bearer {api_key}"
+    }
+
     params: dict[str, Any] = {}
 
     if provider == "anthropic":
@@ -71,25 +77,39 @@ def get_models(provider: str, api_key: str) -> list[dict[str, Any]]:
     url: str | None = MODEL_URLS[provider]
     models: list[dict[str, Any]] = []
 
+    logger.log_event(
+        event="MODEL_DISCOVERY_REQUEST",
+        input_data={"provider": provider},
+    )
+
     try:
+
         while url:
+
             response = requests.get(
                 url,
                 headers=headers,
                 params=params,
                 timeout=30,
             )
+
             response.raise_for_status()
+
             data: dict[str, Any] = response.json()
 
             items: list[dict[str, Any]] = data.get(
-                "data", data.get("models", [])
+                "data",
+                data.get("models", []),
             )
+
             models.extend(items)
 
             if provider == "gemini":
+
                 token: str | None = data.get("nextPageToken")
+
                 url = MODEL_URLS[provider] if token else None
+
                 params = {
                     "key": api_key,
                     "pageSize": 1000,
@@ -97,13 +117,16 @@ def get_models(provider: str, api_key: str) -> list[dict[str, Any]]:
                 } if token else {}
 
             elif provider == "openai":
+
                 if data.get("has_more") and items:
                     params["after"] = items[-1]["id"]
                 else:
                     url = None
 
             elif provider == "anthropic":
+
                 last_id: str | None = data.get("last_id")
+
                 if data.get("has_more") and last_id:
                     params["after_id"] = last_id
                 else:
@@ -112,21 +135,45 @@ def get_models(provider: str, api_key: str) -> list[dict[str, Any]]:
             else:
                 url = None
 
+        logger.log_event(
+            event="MODEL_DISCOVERY_RESPONSE",
+            input_data={"provider": provider},
+            output_data={"total_models": len(models)},
+        )
+
         return models
 
     except requests.RequestException as error:
+
         status: int | None = (
             error.response.status_code
             if error.response is not None else None
         )
+
+        logger.log_event(
+            event="MODEL_DISCOVERY_FAILED",
+            input_data={"provider": provider},
+            error=f"{type(error).__name__}: HTTP {status}",
+        )
+
         print(f"{provider}: discovery failed ({status})")
+
         return []
 
+
 def get_model_id(provider: str, model: dict[str, Any]) -> str:
+
     name: str = model.get("id") or model.get("name", "")
-    return name.removeprefix("models/") if provider == "gemini" else name
+
+    return (
+        name.removeprefix("models/")
+        if provider == "gemini"
+        else name
+    )
+
 
 def is_chat_model(provider: str, model: dict[str, Any]) -> bool:
+
     name: str = get_model_id(provider, model).lower()
 
     if not name or any(word in name for word in EXCLUDED_MODELS):
@@ -136,41 +183,89 @@ def is_chat_model(provider: str, model: dict[str, Any]) -> bool:
         return name.startswith("claude-")
 
     if provider == "gemini":
-        return "generateContent" in model.get("supportedGenerationMethods", [])
+        return (
+            "generateContent"
+            in model.get("supportedGenerationMethods", [])
+        )
 
     if provider == "openai":
-        return name.startswith(("gpt-", "o1", "o3", "o4", "chatgpt-"))
+        return name.startswith(
+            ("gpt-", "o1", "o3", "o4", "chatgpt-")
+        )
 
     return model.get("active", True) is not False
 
+
 def get_model_score(provider: str, model: dict[str, Any]) -> int:
+
     name: str = get_model_id(provider, model).lower()
 
     scores: list[int] = [
-        score for word, score in MODEL_PRIORITY.items()
+        score
+        for word, score in MODEL_PRIORITY.items()
         if word in name
     ]
 
     return min(scores) if scores else 50
 
+
 def discover_models() -> dict[str, list[str]]:
+
     available: dict[str, list[str]] = {}
 
+    logger.log_event(
+        event="MODEL_DISCOVERY_START",
+        output_data={
+            "configured_providers": [
+                provider
+                for provider in PROVIDERS
+                if API_KEYS[provider]
+            ]
+        },
+    )
+
     for provider in PROVIDERS:
+
         api_key: str | None = API_KEYS[provider]
 
         if not api_key:
+            logger.log_event(
+                event="PROVIDER_SKIPPED",
+                input_data={"provider": provider},
+                output_data="API key not configured",
+            )
             continue
 
-        models: list[dict[str, Any]] = get_models(provider, api_key)
-        models = [m for m in models if is_chat_model(provider, m)]
+        models: list[dict[str, Any]] = get_models(
+            provider,
+            api_key,
+        )
 
-        models.sort(key=lambda m: get_model_score(provider, m))
+        models = [
+            model
+            for model in models
+            if is_chat_model(provider, model)
+        ]
+
+        models.sort(
+            key=lambda model: get_model_score(provider, model)
+        )
 
         if models:
+
             available[provider] = [
-                get_model_id(provider, model) for model in models
+                get_model_id(provider, model)
+                for model in models
             ]
+
+            logger.log_event(
+                event="PROVIDER_MODELS_SELECTED",
+                input_data={"provider": provider},
+                output_data={
+                    "total_models": len(models),
+                    "selected_model": available[provider][0],
+                },
+            )
 
             print(
                 f"{provider.upper()}: {len(models)} models | "
@@ -178,9 +273,21 @@ def discover_models() -> dict[str, list[str]]:
             )
 
         else:
+
+            logger.log_event(
+                event="PROVIDER_NO_MODELS",
+                input_data={"provider": provider},
+            )
+
             print(f"{provider.upper()}: No available chat models")
 
+    logger.log_event(
+        event="MODEL_DISCOVERY_COMPLETE",
+        output_data=available,
+    )
+
     return available
+
 
 def chat(
     history: list[dict[str, str]],
@@ -188,13 +295,24 @@ def chat(
 ) -> bool:
 
     for provider in PROVIDERS:
+
         if provider not in available:
             continue
 
         model_name: str = available[provider][0]
         model: str = f"{provider}/{model_name}"
 
+        logger.log_event(
+            event="AI_API_REQUEST",
+            input_data={
+                "provider": provider,
+                "model": model_name,
+                "message_count": len(history),
+            },
+        )
+
         try:
+
             response = completion(
                 model=model,
                 messages=history,
@@ -206,9 +324,11 @@ def chat(
             answer: Any = response.choices[0].message.content
 
             if isinstance(answer, list):
+
                 answer = "\n".join(
                     str(part.get("text", ""))
-                    if isinstance(part, dict) else str(part)
+                    if isinstance(part, dict)
+                    else str(part)
                     for part in answer
                 )
 
@@ -222,69 +342,175 @@ def chat(
                 "content": answer,
             })
 
+            logger.log_event(
+                event="AI_API_RESPONSE",
+                input_data={
+                    "provider": provider,
+                    "model": model_name,
+                },
+                output_data={
+                    "response_length": len(answer),
+                },
+            )
+
             print(f"\n[{provider.upper()} | {model_name}]")
             print(answer)
 
             return True
 
         except Exception as error:
-            message: str = str(error)
-            api_key: str | None = API_KEYS[provider]
 
-            if api_key:
-                message = message.replace(api_key, "[REDACTED]")
+            logger.log_event(
+                event="AI_API_FAILED",
+                input_data={
+                    "provider": provider,
+                    "model": model_name,
+                },
+                error=f"{type(error).__name__}: {error}",
+            )
 
             print(f"{provider.upper()} failed: {type(error).__name__}")
             print("Switching to next provider...")
 
+            logger.log_event(
+                event="PROVIDER_FALLBACK",
+                input_data={"failed_provider": provider},
+                output_data="Switching to next provider",
+            )
+
+    logger.log_event(
+        event="ALL_PROVIDERS_FAILED",
+        output_data="All available providers failed",
+    )
+
     print("All providers failed.")
+
     return False
 
+
 def main() -> None:
-    print("\nUltimate AI Chatbot")
 
-    available: dict[str, list[str]] = discover_models()
+    logger.log_event(
+        event="APPLICATION_START",
+        output_data="Ultimate AI Chatbot started",
+    )
 
-    if not available:
-        print("No configured providers available.")
-        return
+    try:
 
-    history: list[dict[str, str]] = [{
-        "role": "system",
-        "content": "You are a helpful and intelligent AI assistant.",
-    }]
+        print("\nUltimate AI Chatbot")
 
-    print("\nChat started. Commands: /exit, /clear, /models\n")
+        available: dict[str, list[str]] = discover_models()
 
-    while True:
-        try:
-            message: str = input("You: ").strip()
+        if not available:
 
-            if not message:
-                continue
+            logger.log_event(
+                event="NO_PROVIDERS_AVAILABLE",
+                output_data="No configured providers available",
+            )
 
-            if message == "/exit":
+            print("No configured providers available.")
+
+            return
+
+        history: list[dict[str, str]] = [{
+            "role": "system",
+            "content": "You are a helpful and intelligent AI assistant.",
+        }]
+
+        print("\nChat started. Commands: /exit, /clear, /models\n")
+
+        while True:
+
+            try:
+
+                message: str = input("You: ").strip()
+
+                if not message:
+                    continue
+
+                logger.log_event(
+                    event="USER_INPUT",
+                    input_data=message,
+                )
+
+                if message == "/exit":
+
+                    logger.log_event(
+                        event="EXIT_COMMAND",
+                        output_data="User requested application exit",
+                    )
+
+                    break
+
+                if message == "/clear":
+
+                    history = history[:1]
+
+                    logger.log_event(
+                        event="CONVERSATION_CLEARED",
+                        output_data="Conversation history cleared",
+                    )
+
+                    print("History cleared.")
+
+                    continue
+
+                if message == "/models":
+
+                    for provider, models in available.items():
+                        print(
+                            f"{provider.upper()}: {', '.join(models)}"
+                        )
+
+                    logger.log_event(
+                        event="MODELS_DISPLAYED",
+                        output_data=available,
+                    )
+
+                    continue
+
+                history.append({
+                    "role": "user",
+                    "content": message,
+                })
+
+                if not chat(history, available):
+
+                    history.pop()
+
+                    logger.log_event(
+                        event="CHAT_FAILED",
+                        input_data=message,
+                        error="All providers failed",
+                    )
+
+            except KeyboardInterrupt:
+
+                logger.log_event(
+                    event="KEYBOARD_INTERRUPT",
+                    output_data="Application interrupted by user",
+                )
+
                 break
 
-            if message == "/clear":
-                history = history[:1]
-                print("History cleared.")
-                continue
+    except Exception as error:
 
-            if message == "/models":
-                for provider, models in available.items():
-                    print(f"{provider.upper()}: {', '.join(models)}")
-                continue
+        logger.log_event(
+            event="APPLICATION_FAILED",
+            error=f"{type(error).__name__}: {error}",
+        )
 
-            history.append({"role": "user", "content": message})
+        raise
 
-            if not chat(history, available):
-                history.pop()
+    finally:
 
-        except KeyboardInterrupt:
-            break
+        print("\nGoodbye!")
 
-    print("\nGoodbye!")
+        logger.log_event(
+            event="APPLICATION_END",
+            output_data="Ultimate AI Chatbot stopped",
+        )
+
 
 if __name__ == "__main__":
     main()

@@ -4,6 +4,8 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+from log.logger import logger
+
 
 BASE_DIRECTORY: Path = Path(__file__).resolve().parent.parent
 
@@ -250,3 +252,20 @@ FINAL RESPONSE REQUIREMENTS:
 - Expand only when the request or situation requires it.
 - Return only the relevant answer.
 """
+
+
+logger.log_event(
+    event="CONFIGURATION_LOADED",
+    output_data={
+        "configured_providers": [
+            provider
+            for provider, api_key in API_KEYS.items()
+            if api_key
+        ],
+        "provider_count": len(PROVIDERS),
+        "max_tokens": MAX_TOKENS,
+        "request_timeout": REQUEST_TIMEOUT,
+        "discovery_timeout": DISCOVERY_TIMEOUT,
+        "topic_boundary_enabled": TOPIC_BOUNDARY_ENABLED,
+    },
+)

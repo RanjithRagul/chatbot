@@ -1,12 +1,15 @@
+
 import importlib.util
 import re
 import threading
+import time
 from pathlib import Path
 from types import ModuleType
 from typing import Any
 
 from chatbot.config import BASE_DIRECTORY
 from chatbot.llm_client import generate
+from log.logger import logger
 
 
 ROUTER_PROMPT: str = """
@@ -129,10 +132,29 @@ def route_query(
     available: dict[str, list[str]],
 ) -> str:
 
+    logger.log_event(
+        event="QUERY_ROUTING_START",
+        input_data=query,
+    )
+
     if not query.strip():
+
+        logger.log_event(
+            event="QUERY_ROUTING_DECISION",
+            input_data=query,
+            output_data="chat",
+        )
+
         return "chat"
 
     if requires_rag(query):
+
+        logger.log_event(
+            event="QUERY_ROUTING_DECISION",
+            input_data=query,
+            output_data="rag (keyword match)",
+        )
+
         return "rag"
 
     messages: list[dict[str, str]] = [
@@ -147,10 +169,17 @@ def route_query(
     ]
 
     try:
+        start_time: float = time.perf_counter()
+
         decision: str = generate(
             messages=messages,
             available=available,
             max_tokens=10,
+        )
+
+        duration_ms: float = round(
+            (time.perf_counter() - start_time) * 1000,
+            2,
         )
 
         decision = decision.strip().lower()
@@ -158,13 +187,35 @@ def route_query(
 
         words: list[str] = decision.split()
 
-        if words and words[0] == "rag":
-            return "rag"
+        destination: str = (
+            "rag" if words and words[0] == "rag" else "chat"
+        )
 
-        return "chat"
+        logger.log_event(
+            event="QUERY_ROUTING_DECISION",
+            input_data=query,
+            output_data={
+                "decision": destination,
+                "model_response": decision,
+                "duration_ms": duration_ms,
+            },
+        )
+
+        return destination
 
     except Exception as error:
-        print(f"Router classification failed: {type(error).__name__}")
+
+        logger.log_event(
+            event="QUERY_ROUTING_FAILED",
+            input_data=query,
+            output_data="chat (fallback)",
+            error=f"{type(error).__name__}: {error}",
+        )
+
+        print(
+            f"Router classification failed: {type(error).__name__}"
+        )
+
         return "chat"
 
 
@@ -180,30 +231,62 @@ def get_rag_instance() -> Any:
         if RAG_INSTANCE is not None:
             return RAG_INSTANCE
 
-        if not RAG_FILE.is_file():
-            raise FileNotFoundError(
-                f"RAG module not found: {RAG_FILE}"
-            )
-
-        spec = importlib.util.spec_from_file_location(
-            "ultimate_chatbot_rag_module",
-            RAG_FILE,
+        logger.log_event(
+            event="RAG_INITIALIZATION_START",
+            input_data=str(RAG_FILE),
         )
 
-        if spec is None or spec.loader is None:
-            raise ImportError("Unable to load the RAG module.")
+        try:
+            if not RAG_FILE.is_file():
+                raise FileNotFoundError(
+                    f"RAG module not found: {RAG_FILE}"
+                )
 
-        module: ModuleType = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
+            spec = importlib.util.spec_from_file_location(
+                "ultimate_chatbot_rag_module",
+                RAG_FILE,
+            )
 
-        rag_class: Any = getattr(module, "RerankRAG", None)
+            if spec is None or spec.loader is None:
+                raise ImportError(
+                    "Unable to load the RAG module."
+                )
 
-        if rag_class is None:
-            raise AttributeError("RerankRAG class was not found.")
+            module: ModuleType = importlib.util.module_from_spec(
+                spec
+            )
 
-        RAG_INSTANCE = rag_class()
+            spec.loader.exec_module(module)
 
-    return RAG_INSTANCE
+            rag_class: Any = getattr(
+                module,
+                "RerankRAG",
+                None,
+            )
+
+            if rag_class is None:
+                raise AttributeError(
+                    "RerankRAG class was not found."
+                )
+
+            RAG_INSTANCE = rag_class()
+
+            logger.log_event(
+                event="RAG_INITIALIZATION_SUCCESS",
+                output_data="RAG instance initialized successfully",
+            )
+
+            return RAG_INSTANCE
+
+        except Exception as error:
+
+            logger.log_event(
+                event="RAG_INITIALIZATION_FAILED",
+                input_data=str(RAG_FILE),
+                error=f"{type(error).__name__}: {error}",
+            )
+
+            raise
 
 
 def enforce_short_answer(
@@ -259,79 +342,163 @@ def answer_rag_query(
     history: list[dict[str, str]],
 ) -> str:
 
-    rag: Any = get_rag_instance()
-
-    results: list[dict[str, Any]] = rag.search(
-        query=query,
-        top_k=30,
-        top_n=5,
+    logger.log_event(
+        event="RAG_SEARCH_START",
+        input_data=query,
     )
 
-    passages: list[str] = []
+    try:
+        rag: Any = get_rag_instance()
 
-    for position, result in enumerate(results, start=1):
+        search_start: float = time.perf_counter()
 
-        document: dict[str, Any] = result["document"]
-
-        content: str = str(
-            document.get("text", "")
-        ).strip()
-
-        if not content:
-            continue
-
-        passages.append(
-            f"Passage {position}\n"
-            f"Source: {document.get('source', 'Unknown')}\n"
-            f"Page: {document.get('page', 'Unknown')}\n"
-            f"Content:\n{content}"
+        results: list[dict[str, Any]] = rag.search(
+            query=query,
+            top_k=30,
+            top_n=5,
         )
 
-    retrieved_context: str = (
-        "\n\n".join(passages)
-        if passages
-        else "No relevant passages were found in the local knowledge base."
-    )
+        search_duration_ms: float = round(
+            (time.perf_counter() - search_start) * 1000,
+            2,
+        )
 
-    messages: list[dict[str, str]] = [
-        {
-            "role": "system",
-            "content": RAG_PROMPT,
-        }
-    ]
+        logger.log_event(
+            event="RAG_SEARCH_COMPLETE",
+            input_data={
+                "query": query,
+                "top_k": 30,
+                "top_n": 5,
+            },
+            output_data={
+                "retrieved_results": len(results),
+                "duration_ms": search_duration_ms,
+            },
+        )
 
-    previous_messages: list[dict[str, str]] = [
-        message
-        for message in history[1:-1]
-        if message.get("role") in {"user", "assistant"}
-    ]
+        passages: list[str] = []
 
-    messages.extend(previous_messages[-4:])
+        for position, result in enumerate(results, start=1):
 
-    messages.append({
-        "role": "user",
-        "content": (
-            f"QUESTION:\n{query}\n\n"
-            f"RETRIEVED DOCUMENT PASSAGES:\n"
-            f"<retrieved_context>\n"
-            f"{retrieved_context}\n"
-            f"</retrieved_context>\n\n"
-            "Read the passages and identify only the information "
-            "needed to answer the question. Write a fresh, polished "
-            "answer. Keep it below 45 words and use no more than "
-            "2 sentences unless the question explicitly requires "
-            "more detail. Check spelling and grammar. "
-            "Do not reproduce the retrieved passages."
-        ),
-    })
+            document: dict[str, Any] = result["document"]
 
-    answer: str = generate(
-        messages=messages,
-        available=available,
-        max_tokens=120,
-    )
+            content: str = str(
+                document.get("text", "")
+            ).strip()
 
-    return enforce_short_answer(
-        answer=answer,
-        query=query,
-    )
+            if not content:
+                continue
+
+            passages.append(
+                f"Passage {position}\n"
+                f"Source: {document.get('source', 'Unknown')}\n"
+                f"Page: {document.get('page', 'Unknown')}\n"
+                f"Content:\n{content}"
+            )
+
+        retrieved_context: str = (
+            "\n\n".join(passages)
+            if passages
+            else "No relevant passages were found in the local knowledge base."
+        )
+
+        messages: list[dict[str, str]] = [
+            {
+                "role": "system",
+                "content": RAG_PROMPT,
+            }
+        ]
+
+        previous_messages: list[dict[str, str]] = [
+            message
+            for message in history[1:-1]
+            if message.get("role") in {"user", "assistant"}
+        ]
+
+        messages.extend(previous_messages[-4:])
+
+        messages.append({
+            "role": "user",
+            "content": (
+                f"QUESTION:\n{query}\n\n"
+                f"RETRIEVED DOCUMENT PASSAGES:\n"
+                f"<retrieved_context>\n"
+                f"{retrieved_context}\n"
+                f"</retrieved_context>\n\n"
+                "Read the passages and identify only the information "
+                "needed to answer the question. Write a fresh, polished "
+                "answer. Keep it below 45 words and use no more than "
+                "2 sentences unless the question explicitly requires "
+                "more detail. Check spelling and grammar. "
+                "Do not reproduce the retrieved passages."
+            ),
+        })
+
+        logger.log_event(
+            event="RAG_CONTEXT_PREPARED",
+            input_data={
+                "query": query,
+                "retrieved_passages": len(passages),
+                "history_messages": len(previous_messages[-4:]),
+            },
+            output_data={
+                "api_messages": len(messages),
+                "context_characters": len(retrieved_context),
+            },
+        )
+
+        logger.log_event(
+            event="RAG_GENERATION_START",
+            input_data=query,
+        )
+
+        generation_start: float = time.perf_counter()
+
+        answer: str = generate(
+            messages=messages,
+            available=available,
+            max_tokens=120,
+        )
+
+        generation_duration_ms: float = round(
+            (time.perf_counter() - generation_start) * 1000,
+            2,
+        )
+
+        logger.log_event(
+            event="RAG_GENERATION_COMPLETE",
+            input_data=query,
+            output_data={
+                "answer": answer,
+                "duration_ms": generation_duration_ms,
+            },
+        )
+
+        final_answer: str = enforce_short_answer(
+            answer=answer,
+            query=query,
+        )
+
+        logger.log_event(
+            event="RAG_ANSWER_ENFORCED",
+            input_data={
+                "original_length": len(answer),
+                "query": query,
+            },
+            output_data={
+                "final_answer": final_answer,
+                "final_length": len(final_answer),
+            },
+        )
+
+        return final_answer
+
+    except Exception as error:
+
+        logger.log_event(
+            event="RAG_GENERATION_FAILED",
+            input_data=query,
+            error=f"{type(error).__name__}: {error}",
+        )
+
+        raise
