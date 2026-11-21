@@ -248,21 +248,25 @@ class PDFTextExtractor:
                 )
 
 
-extractor = PDFTextExtractor()
+def main() -> None:
 
-try:
+    extractor = PDFTextExtractor()
 
-    pdf_data: Dict[str, List[str]] = extractor.extract_all_pdfs()
+    try:
 
-    extractor.save_extracted_text(pdf_data)
+        pdf_data: Dict[str, List[str]] = extractor.extract_all_pdfs()
 
-except Exception as error:
+        extractor.save_extracted_text(pdf_data)
 
-    logger.log_event(
-        event="PDF_PROCESSING_FAILED",
-        error=f"{type(error).__name__}: {error}",
-    )
+    except Exception as error:
 
-    raise
+        logger.log_event(
+            event="PDF_PROCESSING_FAILED",
+            error=f"{type(error).__name__}: {error}",
+        )
 
-# extractor.remove_all_pdf()
+        raise
+
+
+if __name__ == "__main__":
+    main()

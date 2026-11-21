@@ -1,5 +1,5 @@
 
-from chatbot.config import SYSTEM_PROMPT
+from chatbot.config import SYSTEM_PROMPT, TOPIC_REJECTION_MESSAGE
 from chatbot.model_discovery import discover_models
 from chatbot.llm_client import chat
 from chatbot import llm_client
@@ -111,6 +111,22 @@ def main() -> None:
                     input_data=message,
                     output_data=f"destination={destination}",
                 )
+
+                if destination == "out_of_scope":
+                    history.append({
+                        "role": "assistant",
+                        "content": TOPIC_REJECTION_MESSAGE,
+                    })
+
+                    print(f"\n{TOPIC_REJECTION_MESSAGE}")
+
+                    logger.log_event(
+                        event="TOPIC_REQUEST_REJECTED",
+                        input_data=message,
+                        output_data=TOPIC_REJECTION_MESSAGE,
+                    )
+
+                    continue
 
                 if destination == "rag":
                     try:

@@ -7,33 +7,36 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any
 
-from chatbot.config import BASE_DIRECTORY
+from chatbot.config import (
+    ALLOWED_TOPICS,
+    BASE_DIRECTORY,
+    TOPIC_BOUNDARY_ENABLED,
+)
 from chatbot.llm_client import generate
 from log.logger import logger
 
 
-ROUTER_PROMPT: str = """
-You are a request router for a chatbot with a local PDF knowledge base.
+ROUTER_PROMPT: str = f"""
+You route requests for a chatbot with a local PDF knowledge base.
 
-Choose exactly one destination.
+{f'Allowed topics: {", ".join(ALLOWED_TOPICS)}.' if TOPIC_BOUNDARY_ENABLED else ''}
 
-rag:
-The user wants information from locally indexed documents,
-uploaded PDFs, or the local knowledge base.
+Choose exactly one destination:
 
-chat:
-The user asks a general question that does not require
-information from local documents.
+rag: The user asks for information from a local PDF or knowledge base.
+chat: The user asks an in-scope general question that does not need local documents.
+out_of_scope: The request is outside the allowed topics above. Simple greetings and conversational messages are in scope. When topic boundaries are disabled, never choose out_of_scope.
+
+Requests to consult local documents remain in scope; route those to rag.
 
 Examples:
-"Who is Thomas Parke from my RAG?" -> rag
-"How do I get to West Egg village from RAG?" -> rag
 "What does my PDF say about Gatsby?" -> rag
 "Summarize my uploaded document" -> rag
 "What is Python?" -> chat
 "Explain binary search" -> chat
+"What is the capital of France?" -> out_of_scope
 
-Return exactly one word: rag or chat.
+Return exactly one word: rag, chat, or out_of_scope.
 """
 
 RAG_PROMPT: str = """
@@ -147,16 +150,6 @@ def route_query(
 
         return "chat"
 
-    if requires_rag(query):
-
-        logger.log_event(
-            event="QUERY_ROUTING_DECISION",
-            input_data=query,
-            output_data="rag (keyword match)",
-        )
-
-        return "rag"
-
     messages: list[dict[str, str]] = [
         {
             "role": "system",
@@ -188,7 +181,9 @@ def route_query(
         words: list[str] = decision.split()
 
         destination: str = (
-            "rag" if words and words[0] == "rag" else "chat"
+            words[0]
+            if words and words[0] in {"rag", "chat", "out_of_scope"}
+            else "chat"
         )
 
         logger.log_event(
