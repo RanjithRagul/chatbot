@@ -61,6 +61,19 @@ class RouterTests(unittest.TestCase):
             prompt,
         )
 
+    def test_router_failure_fails_closed_when_topic_boundary_is_enabled(self) -> None:
+        with (
+            patch.object(router, "generate", side_effect=RuntimeError("offline")),
+            patch.object(router.logger, "log_event"),
+            patch("builtins.print"),
+        ):
+            destination = router.route_query(
+                "What is Python?",
+                {"groq": ["model"]},
+            )
+
+        self.assertEqual(destination, "out_of_scope")
+
 
 class ChatFlowTests(unittest.TestCase):
     def test_rejects_out_of_scope_request_without_calling_chat_model(self) -> None:

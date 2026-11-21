@@ -200,10 +200,14 @@ def route_query(
 
     except Exception as error:
 
+        fallback_destination: str = (
+            "out_of_scope" if TOPIC_BOUNDARY_ENABLED else "chat"
+        )
+
         logger.log_event(
             event="QUERY_ROUTING_FAILED",
             input_data=query,
-            output_data="chat (fallback)",
+            output_data=f"{fallback_destination} (fallback)",
             error=f"{type(error).__name__}: {error}",
         )
 
@@ -211,7 +215,7 @@ def route_query(
             f"Router classification failed: {type(error).__name__}"
         )
 
-        return "chat"
+        return fallback_destination
 
 
 def get_rag_instance() -> Any:

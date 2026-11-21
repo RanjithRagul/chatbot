@@ -4,7 +4,7 @@ A command-line chatbot that uses configured model providers for general question
 
 ## Requirements
 
-- Python 3.10 or newer
+- Python 3.12, 3.13, or 3.14 (required by the pinned dependencies)
 - API key for at least one supported provider: Groq, Google Gemini, OpenAI, or Anthropic
 - Internet access for model discovery and chat requests
 - Disk space and internet access on first RAG use to download the embedding and reranking models
