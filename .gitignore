@@ -153,6 +153,7 @@ activemq-data/
 
 # Environments
 .env
+.dev.vars
 .envrc
 .venv
 env/
@@ -220,3 +221,18 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Local web Worker tooling and state
+.tools/
+.npm-cache/
+node_modules/
+web/worker/.venv/
+web/worker/.venv-workers/
+web/worker/python_modules/
+web/worker/pylock.toml
+web/worker/.uv-cache/
+web/worker/.uv-python/
+web/worker/.wrangler/
+web/worker/.local-config/
+web/worker/.npm-cache/
+web/worker/.tmp/

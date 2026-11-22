@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#111827" />
+    <meta
+      name="description"
+      content="A concise AI assistant for software development and AI topics."
+    />
+    <title>AI Chatbot</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <a class="brand" href="/" aria-label="AI Chatbot home">
+          <span class="brand-mark" aria-hidden="true">✦</span>
+          <span>AI Chatbot</span>
+        </a>
+        <div class="service-status" id="service-status" role="status">
+          <span class="status-dot" aria-hidden="true"></span>
+          <span>Checking service</span>
+        </div>
+      </header>
+
+      <section class="chat-panel" aria-label="Chat">
+        <div class="chat-heading">
+          <p class="eyebrow">SOFTWARE &amp; AI ASSISTANT</p>
+          <h1>What are you working on?</h1>
+          <p class="intro">
+            Ask about programming, software development, or artificial intelligence.
+          </p>
+        </div>
+
+        <div
+          id="messages"
+          class="messages"
+          role="log"
+          aria-live="polite"
+          aria-relevant="additions text"
+        >
+          <article class="message assistant-message">
+            <div class="avatar" aria-hidden="true">✦</div>
+            <div class="message-content">
+              <p>Hello! What would you like help with?</p>
+            </div>
+          </article>
+        </div>
+
+        <form id="chat-form" class="composer">
+          <label class="visually-hidden" for="prompt">Your message</label>
+          <textarea
+            id="prompt"
+            name="prompt"
+            rows="1"
+            maxlength="4000"
+            placeholder="Message the assistant…"
+            autocomplete="off"
+            required
+          ></textarea>
+          <div class="composer-footer">
+            <span class="hint">Enter to send · Shift+Enter for a new line</span>
+            <button id="send-button" class="send-button" type="submit">
+              <span>Send</span>
+              <span aria-hidden="true">↗</span>
+            </button>
+          </div>
+        </form>
+        <p class="fine-print">Please don’t include passwords or private information.</p>
+      </section>
+    </main>
+    <script src="/app.js" defer></script>
+  </body>
+</html>
