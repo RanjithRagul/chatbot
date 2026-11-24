@@ -5,7 +5,6 @@ from typing import Any
 from .config import SYSTEM_PROMPT
 
 
-MAX_HISTORY_MESSAGES = 12
 MAX_MESSAGE_CHARS = 4_000
 MAX_HISTORY_CHARS = 16_000
 
@@ -17,9 +16,6 @@ class InvalidConversation(ValueError):
 def build_messages(client_messages: Any) -> list[dict[str, str]]:
     if not isinstance(client_messages, list) or not client_messages:
         raise InvalidConversation("Send at least one user message.")
-
-    if len(client_messages) > MAX_HISTORY_MESSAGES:
-        raise InvalidConversation("Conversation is too long. Start a new chat.")
 
     messages: list[dict[str, str]] = []
     total_chars = 0

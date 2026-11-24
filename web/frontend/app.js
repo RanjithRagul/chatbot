@@ -4,8 +4,29 @@ const messagesElement = document.querySelector("#messages");
 const sendButton = document.querySelector("#send-button");
 const serviceStatus = document.querySelector("#service-status");
 
+const MAX_CONTEXT_MESSAGES = 10;
+const MAX_CONTEXT_CHARS = 12_000;
 const conversation = [];
 let waitingForAnswer = false;
+
+function trimConversationForNextMessage(text) {
+  let retainedCharacters = conversation.reduce(
+    (total, message) => total + message.content.length,
+    0,
+  );
+
+  while (
+    conversation.length > MAX_CONTEXT_MESSAGES ||
+    retainedCharacters + text.length > MAX_CONTEXT_CHARS
+  ) {
+    const removedMessages = conversation.splice(0, 2);
+    if (removedMessages.length === 0) break;
+    retainedCharacters -= removedMessages.reduce(
+      (total, message) => total + message.content.length,
+      0,
+    );
+  }
+}
 
 function addMessage(role, content, { pending = false } = {}) {
   const article = document.createElement("article");
@@ -51,6 +72,7 @@ async function checkHealth() {
 }
 
 async function sendMessage(text) {
+  trimConversationForNextMessage(text);
   const userMessage = { role: "user", content: text };
   conversation.push(userMessage);
   addMessage("user", text);
