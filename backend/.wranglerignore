@@ -1,0 +1,17 @@
+*
+!src/
+!src/worker.py
+!src/chatbot/
+!src/chatbot/__init__.py
+!src/chatbot/config.py
+!src/chatbot/chat_service.py
+!src/db/
+!src/db/__init__.py
+!src/db/usage_counter.py
+!src/db/migrations/
+!src/db/migrations/0001_monthly_usage.sql
+!src/log/
+!src/log/__init__.py
+!src/log/worker_events.py
+!python_modules/
+!python_modules/**

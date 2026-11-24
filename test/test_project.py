@@ -9,10 +9,10 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from chatbot.config import TOPIC_REJECTION_MESSAGE
-from chatbot.main import main
-from pdf.text_extractor_from_pdf import PDFTextExtractor
-from router import router
+from backend.chatbot.config import TOPIC_REJECTION_MESSAGE
+from backend.chatbot.main import main
+from backend.pdf.text_extractor_from_pdf import PDFTextExtractor
+from backend.router import router
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -79,10 +79,10 @@ class ChatFlowTests(unittest.TestCase):
     def test_rejects_out_of_scope_request_without_calling_chat_model(self) -> None:
         output = io.StringIO()
         with (
-            patch("chatbot.main.discover_models", return_value={"groq": ["model"]}),
-            patch("chatbot.main.route_query", return_value="out_of_scope"),
-            patch("chatbot.main.chat") as chat,
-            patch("chatbot.main.logger.log_event"),
+            patch("backend.chatbot.main.discover_models", return_value={"groq": ["model"]}),
+            patch("backend.chatbot.main.route_query", return_value="out_of_scope"),
+            patch("backend.chatbot.main.chat") as chat,
+            patch("backend.chatbot.main.logger.log_event"),
             patch("builtins.input", side_effect=["Tell me the weather", "/exit"]),
             contextlib.redirect_stdout(output),
         ):
@@ -94,7 +94,7 @@ class ChatFlowTests(unittest.TestCase):
 
 class PdfExtractorTests(unittest.TestCase):
     def test_import_does_not_extract_or_create_output_directory(self) -> None:
-        source = PROJECT_ROOT / "pdf" / "text_extractor_from_pdf.py"
+        source = PROJECT_ROOT / "backend" / "src" / "pdf" / "text_extractor_from_pdf.py"
 
         with tempfile.TemporaryDirectory() as temporary_directory:
             temporary_root = Path(temporary_directory)
@@ -126,7 +126,7 @@ class PdfExtractorTests(unittest.TestCase):
             patch.object(PDFTextExtractor, "extract_all_pdfs", return_value={"a.pdf": ["page"]}) as extract,
             patch.object(PDFTextExtractor, "save_extracted_text") as save,
         ):
-            from pdf.text_extractor_from_pdf import main as extractor_main
+            from backend.pdf.text_extractor_from_pdf import main as extractor_main
 
             extractor_main()
 

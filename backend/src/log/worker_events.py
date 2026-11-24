@@ -6,7 +6,7 @@ from typing import Any
 
 
 def log_event(event: str, **fields: Any) -> None:
-    """Emit structured metadata to Worker logs without conversation contents."""
+    """Write metadata-only structured events to the Worker runtime log."""
     record = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "event": event,

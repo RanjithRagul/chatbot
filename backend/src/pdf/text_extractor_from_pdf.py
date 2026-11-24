@@ -5,7 +5,7 @@ import time
 
 import pymupdf
 
-from log.logger import logger
+from backend.log.logger import logger
 
 
 class PDFTextExtractor:

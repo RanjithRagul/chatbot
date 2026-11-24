@@ -7,7 +7,7 @@ resolution-markers = [
 ]
 
 [[package]]
-name = "chatbot-web-worker"
+name = "chatbot-worker"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
@@ -222,9 +222,9 @@ wheels = [
 
 [[package]]
 name = "workers-runtime-sdk"
-version = "1.9.6"
+version = "1.9.7"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/28/ec/8109dde6fb67b1c916fb4f530ef5dae21c2b6895b9257ea7bbd1385ec55d/workers_runtime_sdk-1.9.6.tar.gz", hash = "sha256:8a1f7876dbec7a0db6ddb246dd6bd8540194ac892a70fd59dea5208d5ff4763a", size = 148424, upload-time = "2026-11-04T07:04:36.665Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/cc/4d/c933b990a9380a30fa1d7fcd3615e930a60c415b00f3e1c1e5e54e21182c/workers_runtime_sdk-1.9.7.tar.gz", hash = "sha256:51ffaf0dd2fb17f541d2373037c7a2cd9587e14d736395440bc9e2bed343be74", size = 148553, upload-time = "2026-11-23T03:46:18.761Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/58/e4/fffa3f6b3eb91b34dcc06f0b9de016cb90c156ae2a2e944054b02618e981/workers_runtime_sdk-1.9.6-py3-none-any.whl", hash = "sha256:f343880a9c1380dd9b340808df93d584ff3c77428f932e14f4a23c36b7bd1bdc", size = 41483, upload-time = "2026-11-04T07:04:34.843Z" },
+    { url = "https://files.pythonhosted.org/packages/67/1e/cdef3dc0bb249e9e7dee433f6ca8796241328f5134c8d0a97056f064590c/workers_runtime_sdk-1.9.7-py3-none-any.whl", hash = "sha256:2bda7f2d640aef09cb7c3d2f3c07ad87e649340b313b80b08a06a85b2202bd1e", size = 41487, upload-time = "2026-11-23T03:46:17.368Z" },
 ]

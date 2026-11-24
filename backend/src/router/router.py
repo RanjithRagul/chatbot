@@ -7,13 +7,13 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any
 
-from chatbot.config import (
+from backend.chatbot.config import (
     ALLOWED_TOPICS,
     BASE_DIRECTORY,
     TOPIC_BOUNDARY_ENABLED,
 )
-from chatbot.llm_client import generate
-from log.logger import logger
+from backend.chatbot.llm_client import generate
+from backend.log.logger import logger
 
 
 ROUTER_PROMPT: str = f"""
@@ -86,7 +86,7 @@ Do not say "Based on the provided text".
 Answer directly.
 """
 
-RAG_FILE: Path = BASE_DIRECTORY / "db" / "2_rerank_rag.py"
+RAG_FILE: Path = BASE_DIRECTORY / "backend" / "src" / "db" / "2_rerank_rag.py"
 
 RAG_INSTANCE: Any = None
 RAG_LOCK: threading.Lock = threading.Lock()

@@ -13,7 +13,7 @@ class EventLogger:
             raise ValueError("max_files and max_field_length must be positive")
 
         self.log_dir = Path(__file__).resolve().parent
-        self.project_dir = self.log_dir.parent
+        self.project_dir = self.log_dir.parent.parent.parent
         self.max_files = max_files
         self.max_field_length = max_field_length
         self.lock = threading.Lock()

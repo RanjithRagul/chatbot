@@ -17,7 +17,7 @@ async def reserve_monthly_call(
     month_utc: str,
     monthly_limit: int,
 ) -> bool:
-    """Atomically reserve one provider call; count attempts, including failures."""
+    """Reserve one monthly call atomically using a D1-compatible binding."""
     result = await (
         database.prepare(RESERVE_CALL_SQL)
         .bind(month_utc, monthly_limit)

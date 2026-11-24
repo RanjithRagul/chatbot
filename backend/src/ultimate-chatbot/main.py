@@ -6,7 +6,7 @@ from typing import Any
 from dotenv import load_dotenv
 from litellm import completion
 
-from log.logger import logger
+from backend.log.logger import logger
 
 load_dotenv()
 

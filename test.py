@@ -1,4 +1,4 @@
-from log.logger import logger
+from backend.log.logger import logger
 
 logger.log_event(
     event="APPLICATION_START",

@@ -1,10 +1,10 @@
 
-from chatbot.config import SYSTEM_PROMPT, TOPIC_REJECTION_MESSAGE
-from chatbot.model_discovery import discover_models
-from chatbot.llm_client import chat
-from chatbot import llm_client
-from router.router import answer_rag_query, route_query
-from log.logger import logger
+from .config import SYSTEM_PROMPT, TOPIC_REJECTION_MESSAGE
+from .model_discovery import discover_models
+from .llm_client import chat
+from . import llm_client
+from backend.router.router import answer_rag_query, route_query
+from backend.log.logger import logger
 
 
 def main() -> None:

@@ -4,7 +4,7 @@ from typing import Any
 
 from litellm import completion
 
-from chatbot.config import (
+from .config import (
     API_KEYS,
     PROVIDERS,
     MAX_TOKENS,
@@ -12,7 +12,7 @@ from chatbot.config import (
     SYSTEM_PROMPT,
 )
 
-from log.logger import logger
+from backend.log.logger import logger
 
 
 RECENT_MESSAGES: int = 6

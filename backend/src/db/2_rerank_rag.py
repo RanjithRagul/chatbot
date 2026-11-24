@@ -10,7 +10,7 @@ import numpy as np
 import torch
 from sentence_transformers import SentenceTransformer, CrossEncoder
 
-from log.logger import logger
+from backend.log.logger import logger
 
 
 class RerankRAG:

@@ -4,7 +4,7 @@ from typing import Any
 
 import requests
 
-from chatbot.config import (
+from .config import (
     API_KEYS,
     PROVIDERS,
     MODEL_URLS,
@@ -14,7 +14,7 @@ from chatbot.config import (
     MAX_DISCOVERY_MODELS,
 )
 
-from log.logger import logger
+from backend.log.logger import logger
 
 
 def get_models(
