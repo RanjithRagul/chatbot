@@ -1,24 +1,26 @@
 {
-  "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "chatbot-web-demo",
-  "main": "src/worker.py",
-  "compatibility_date": "2026-11-22",
-  "compatibility_flags": ["python_workers"],
-  "assets": {
-    "directory": "../web/frontend",
-    "binding": "ASSETS",
-    "run_worker_first": true
-  },
-  "d1_databases": [
-    {
-      "binding": "USAGE_DB",
-      "database_name": "chatbot-demo-usage",
-      "database_id": "00000000-0000-0000-0000-000000000000",
-      "migrations_dir": "src/db/migrations"
-    }
-  ],
-  "vars": {
-    "GROQ_MODEL": "openai/gpt-oss-20b",
-    "MONTHLY_CALL_LIMIT": "900"
-  }
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "chatbot-web-demo",
+	"main": "src/worker.py",
+	"compatibility_date": "2026-11-22",
+	"compatibility_flags": [
+		"python_workers"
+	],
+	"assets": {
+		"directory": "../web/frontend",
+		"binding": "ASSETS",
+		"run_worker_first": true
+	},
+	"d1_databases": [
+		{
+			"binding": "USAGE_DB",
+			"database_name": "chatbot-demo-usage",
+			"database_id": "5885e5ad-6076-431d-81e5-fe2beaf8d4a1",
+			"migrations_dir": "src/db/migrations"
+		}
+	],
+	"vars": {
+		"GROQ_MODEL": "openai/gpt-oss-20b",
+		"MONTHLY_CALL_LIMIT": "900"
+	}
 }
